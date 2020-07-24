@@ -39,6 +39,7 @@
 ]).
 
 -include_lib("kernel/include/inet.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -type name_address() :: {Name :: string() | undefined, Address :: string()}.
 
@@ -76,7 +77,7 @@ guess_FQDN() ->
 guess_FQDN_1(_Hostname, {ok, #hostent{h_name = FQDN}}) ->
     FQDN;
 guess_FQDN_1(Hostname, {error, nxdomain = Error}) ->
-    error_logger:info_msg(
+    ?LOG_INFO(
         "~p could not get FQDN for ~p (error ~p), using \"localhost\" instead.",
         [?MODULE, Error, Hostname]
     ),

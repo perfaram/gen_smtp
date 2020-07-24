@@ -25,6 +25,8 @@
 
 -module(gen_smtp_client).
 
+-include_lib("kernel/include/logger.hrl").
+
 -define(DEFAULT_OPTIONS, [
     % whether to connect on 465 in ssl mode
     {ssl, false},
@@ -933,15 +935,15 @@ do_STARTTLS(Socket, Options) ->
                     {NewSocket, Extensions};
                 {'EXIT', Reason} ->
                     quit(Socket),
-                    error_logger:error_msg("Error in ssl upgrade: ~p.~n", [Reason]),
+                    ?LOG_ERROR("Error in ssl upgrade: ~p.~n", [Reason]),
                     erlang:throw({temporary_failure, tls_failed});
                 {error, closed} ->
                     quit(Socket),
-                    error_logger:error_msg("Error in ssl upgrade: socket closed.~n"),
+                    ?LOG_ERROR("Error in ssl upgrade: socket closed.~n"),
                     erlang:throw({temporary_failure, tls_failed});
                 {error, ssl_not_started} ->
                     quit(Socket),
-                    error_logger:error_msg("SSL not started.~n"),
+                    ?LOG_ERROR("SSL not started.~n"),
                     erlang:throw({permanent_failure, ssl_not_started});
                 Else ->
                     trace(Options, "~p~n", [Else]),
