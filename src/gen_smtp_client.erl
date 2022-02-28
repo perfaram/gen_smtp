@@ -284,6 +284,12 @@ close(#smtp_client_socket{socket = Socket}) ->
     binary()
     | smtp_session_error().
 send_it(Email, Options) ->
+    send_it(Email, Options, true).
+
+-spec send_it(Email :: email(), Options :: options(), RetryV6 :: boolean()) ->
+    binary()
+    | smtp_session_error().
+send_it(Email, Options, RetryV6) ->
     RelayDomain = to_string(proplists:get_value(relay, Options)),
     MXRecords =
         case proplists:get_value(no_mx_lookups, Options) of
@@ -302,6 +308,13 @@ send_it(Email, Options) ->
                 MXRecords
         end,
     case try_smtp_sessions(Hosts, Options, []) of
+        {error, _, {network_failure, _, {error, nxdomain}}} = Error ->
+            case RetryV6 of
+                true ->
+                    send_it(Email, [{sockopts, [inet6]} | Options], false);
+                false ->
+                    Error
+            end;
         {error, _, _} = Error ->
             Error;
         {ok, ClientSocket} ->
