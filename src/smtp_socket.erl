@@ -33,7 +33,6 @@
 -define(TCP_CONNECT_OPTIONS, [
     {active, false},
     {packet, line},
-    {ip, {0, 0, 0, 0}},
     {port, 0}
 ]).
 -define(SSL_LISTEN_OPTIONS, [
@@ -655,7 +654,6 @@ option_test_() ->
                     list,
                     {active, true},
                     {packet, 2},
-                    {ip, {0, 0, 0, 0}},
                     {port, 0}
                 ]),
                 lists:sort(tcp_connect_options([{active, true}, {packet, 2}]))
