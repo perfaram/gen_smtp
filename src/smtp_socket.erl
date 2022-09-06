@@ -59,6 +59,8 @@
 -include_lib("eunit/include/eunit.hrl").
 -endif.
 
+-include_lib("ssl/src/ssl_api.hrl").
+
 %% API
 -export([connect/3, connect/4, connect/5]).
 -export([listen/2, listen/3, accept/1, accept/2]).
@@ -164,10 +166,10 @@ ssl_handshake(Socket, Options, Timeout) ->
 -endif.
 
 -spec send(Socket :: socket(), Data :: binary() | string() | iolist()) -> 'ok' | {'error', any()}.
-send(Socket, Data) when is_port(Socket) ->
-    gen_tcp:send(Socket, Data);
+send(Socket, Data) when is_record(Socket, sslsocket)  ->
+    ssl:send(Socket, Data);
 send(Socket, Data) ->
-    ssl:send(Socket, Data).
+    gen_tcp:send(Socket, Data).
 
 -spec recv(Socket :: socket(), Length :: non_neg_integer()) -> {'ok', any()} | {'error', any()}.
 recv(Socket, Length) ->
@@ -176,45 +178,45 @@ recv(Socket, Length) ->
 -spec recv(
     Socket :: socket(), Length :: non_neg_integer(), Timeout :: non_neg_integer() | 'infinity'
 ) -> {'ok', any()} | {'error', any()}.
-recv(Socket, Length, Timeout) when is_port(Socket) ->
-    gen_tcp:recv(Socket, Length, Timeout);
+recv(Socket, Length, Timeout) when is_record(Socket, sslsocket) ->
+    ssl:recv(Socket, Length, Timeout);
 recv(Socket, Length, Timeout) ->
-    ssl:recv(Socket, Length, Timeout).
+    gen_tcp:recv(Socket, Length, Timeout).
 
 -spec controlling_process(Socket :: socket(), NewOwner :: pid()) -> 'ok' | {'error', any()}.
-controlling_process(Socket, NewOwner) when is_port(Socket) ->
-    gen_tcp:controlling_process(Socket, NewOwner);
+controlling_process(Socket, NewOwner) when is_record(Socket, sslsocket) ->
+    ssl:controlling_process(Socket, NewOwner);
 controlling_process(Socket, NewOwner) ->
-    ssl:controlling_process(Socket, NewOwner).
+    gen_tcp:controlling_process(Socket, NewOwner).
 
 -spec peername(Socket :: socket()) ->
     {ok, {inet:ip_address(), non_neg_integer()}} | {'error', any()}.
-peername(Socket) when is_port(Socket) ->
-    inet:peername(Socket);
+peername(Socket) when is_record(Socket, sslsocket) ->
+    ssl:peername(Socket);
 peername(Socket) ->
-    ssl:peername(Socket).
+    inet:peername(Socket).
 
 -spec close(Socket :: socket()) -> 'ok'.
-close(Socket) when is_port(Socket) ->
-    gen_tcp:close(Socket);
+close(Socket) when is_record(Socket, sslsocket) ->
+    ssl:close(Socket);
 close(Socket) ->
-    ssl:close(Socket).
+    gen_tcp:close(Socket).
 
 -spec shutdown(Socket :: socket(), How :: 'read' | 'write' | 'read_write') ->
     'ok' | {'error', any()}.
-shutdown(Socket, How) when is_port(Socket) ->
-    gen_tcp:shutdown(Socket, How);
+shutdown(Socket, How) when is_record(Socket, sslsocket) ->
+    ssl:shutdown(Socket, How);
 shutdown(Socket, How) ->
-    ssl:shutdown(Socket, How).
+    gen_tcp:shutdown(Socket, How).
 
 -spec active_once(Socket :: socket()) -> 'ok' | {'error', any()}.
-active_once(Socket) when is_port(Socket) ->
-    inet:setopts(Socket, [{active, once}]);
+active_once(Socket) when is_record(Socket, sslsocket) ->
+    ssl:setopts(Socket, [{active, once}]);
 active_once(Socket) ->
-    ssl:setopts(Socket, [{active, once}]).
+    inet:setopts(Socket, [{active, once}]).
 
 -spec setopts(Socket :: socket(), Options :: list()) -> 'ok' | {'error', any()}.
-setopts(Socket, Options) when is_port(Socket) ->
+setopts(Socket, Options) when is_record(Socket, sslsocket) ->
     inet:setopts(Socket, Options);
 setopts(Socket, Options) ->
     ssl:setopts(Socket, Options).
@@ -275,7 +277,7 @@ to_ssl_server(Socket, Options) ->
 -spec to_ssl_server(
     Socket :: socket(), Options :: list(), Timeout :: non_neg_integer() | 'infinity'
 ) -> {'ok', ssl:sslsocket()} | {'error', any()}.
-to_ssl_server(Socket, Options, Timeout) when is_port(Socket) ->
+to_ssl_server(Socket, Options, Timeout) when is_record(Socket, sslsocket) ->
     ssl_handshake(Socket, ssl_listen_options(Options), Timeout);
 to_ssl_server(_Socket, _Options, _Timeout) ->
     {error, already_ssl}.
@@ -293,6 +295,8 @@ to_ssl_client(Socket, Options) ->
     Socket :: socket(), Options :: list(), Timeout :: non_neg_integer() | 'infinity'
 ) -> {'ok', ssl:sslsocket()} | {'error', 'already_ssl'}.
 to_ssl_client(Socket, Options, Timeout) when is_port(Socket) ->
+    ssl:connect(Socket, ssl_connect_options(Options), Timeout);
+to_ssl_client({_, gen_tcp_socket, _} = Socket, Options, Timeout) ->
     ssl:connect(Socket, ssl_connect_options(Options), Timeout);
 to_ssl_client(_Socket, _Options, _Timeout) ->
     {error, already_ssl}.
