@@ -51,6 +51,7 @@
     {depth, 0},
     {packet, line},
     {ip, {0, 0, 0, 0}},
+    {versions, ['tlsv1.2', 'tlsv1.3']},
     {port, 0}
 ]).
 
@@ -703,7 +704,8 @@ option_test_() ->
                     {depth, 0},
                     {ip, {0, 0, 0, 0}},
                     {port, 0},
-                    {packet, 2}
+                    {packet, 2},
+                    {versions, ['tlsv1.2', 'tlsv1.3']}
                 ]),
                 lists:sort(ssl_connect_options([{active, true}, {packet, 2}]))
             )
