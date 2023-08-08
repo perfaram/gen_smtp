@@ -33,7 +33,7 @@
     % always, never, if_available
     {tls, if_available},
     % used in ssl:connect, http://erlang.org/doc/man/ssl.html
-    {tls_options, [{versions, ['tlsv1', 'tlsv1.1', 'tlsv1.2']}]},
+    {tls_options, [{versions, ['tlsv1.2']}]},
     {auth, if_available},
     {hostname, smtp_util:guess_FQDN()},
     % how many retries per smtp host on temporary failure
