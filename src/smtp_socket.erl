@@ -399,7 +399,8 @@ connect_test_() ->
             spawn(fun() ->
                 {ok, ListenSocket} = listen(ssl, Port, [
                     {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                    {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                    {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                    {cacertfile, "test/fixtures/root.crt"}
                 ]),
                 ?assertMatch([sslsocket | _], tuple_to_list(ListenSocket)),
                 Self ! {Ref, listen},
@@ -410,7 +411,10 @@ connect_test_() ->
             receive
                 {Ref, listen} -> ok
             end,
-            {ok, ClientSocket} = connect(ssl, "localhost", Port, []),
+            {ok, ClientSocket} = connect(ssl, "localhost", Port, [
+                {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+            ]),
+
             receive
                 {Ref, {sslsocket, _, _} = ListenSocket} -> ok
             end,
@@ -447,22 +451,32 @@ evented_connections_test_() ->
             application:ensure_all_started(gen_smtp),
             {ok, ListenSocket} = listen(ssl, Port, [
                 {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                {cacertfile, "test/fixtures/root.crt"}
             ]),
             begin_inet_async(ListenSocket),
-            spawn(fun() -> connect(ssl, "localhost", Port) end),
+            spawn(fun() ->
+                connect(ssl, "localhost", Port, [
+                    {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                ])
+            end),
             receive
                 {inet_async, _ListenPort, _, {ok, ServerSocket}} -> ok
             end,
             {ok, NewServerSocket} = handle_inet_async(ListenSocket, ServerSocket, [
                 {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                {cacertfile, "test/fixtures/root.crt"}
             ]),
             ?assert(is_port(ServerSocket)),
             ?assertMatch([sslsocket | _], tuple_to_list(NewServerSocket)),
             ?assertMatch([sslsocket | _], tuple_to_list(ListenSocket)),
             %Stop the async
-            spawn(fun() -> connect(ssl, "localhost", Port) end),
+            spawn(fun() ->
+                connect(ssl, "localhost", Port, [
+                    {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                ])
+            end),
             receive
                 _Ignored -> ok
             end,
@@ -479,7 +493,11 @@ evented_connections_test_() ->
             application:ensure_all_started(gen_smtp),
             {ok, ListenSocket} = listen(tcp, Port),
             begin_inet_async(ListenSocket),
-            spawn(fun() -> connect(ssl, "localhost", Port) end),
+            spawn(fun() ->
+                connect(ssl, "localhost", Port, [
+                    {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                ])
+            end),
             ServerSocket =
                 receive
                     {inet_async, _ListenPort, _, {ok, ServerSocket0}} -> ServerSocket0
@@ -489,11 +507,16 @@ evented_connections_test_() ->
             ?assert(is_port(ServerSocket)),
             {ok, NewServerSocket} = to_ssl_server(ServerSocket, [
                 {certfile, "test/fixtures/mx1.example.com-server.crt"},
-                {keyfile, "test/fixtures/mx1.example.com-server.key"}
+                {keyfile, "test/fixtures/mx1.example.com-server.key"},
+                {cacertfile, "test/fixtures/root.crt"}
             ]),
             ?assertMatch([sslsocket | _], tuple_to_list(NewServerSocket)),
             % Stop the async
-            spawn(fun() -> connect(ssl, "localhost", Port) end),
+            spawn(fun() ->
+                connect(ssl, "localhost", Port, [
+                    {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                ])
+            end),
             receive
                 _Ignored -> ok
             end,
@@ -508,7 +531,9 @@ accept_test_() ->
             Port = ?TEST_PORT + 6,
             {ok, ListenSocket} = listen(tcp, Port, tcp_listen_options([])),
             ?assert(is_port(ListenSocket)),
-            spawn(fun() -> connect(ssl, "localhost", Port, tcp_connect_options([])) end),
+            spawn(fun() ->
+                connect(ssl, "localhost", Port, tcp_connect_options([{cacertfile, "test/fixtures/root.crt"}]))
+            end),
             {ok, ServerSocket} = accept(ListenSocket),
             ?assert(is_port(ListenSocket)),
             close(ServerSocket),
@@ -519,10 +544,15 @@ accept_test_() ->
             application:ensure_all_started(gen_smtp),
             {ok, ListenSocket} = listen(ssl, Port, [
                 {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                {cacertfile, "test/fixtures/root.crt"}
             ]),
             ?assertMatch([sslsocket | _], tuple_to_list(ListenSocket)),
-            spawn(fun() -> connect(ssl, "localhost", Port) end),
+            spawn(fun() ->
+                connect(ssl, "localhost", Port, [
+                    {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                ])
+            end),
             accept(ListenSocket),
             close(ListenSocket)
         end}
@@ -539,7 +569,8 @@ type_test_() ->
             application:ensure_all_started(gen_smtp),
             {ok, ListenSocket} = listen(ssl, ?TEST_PORT + 9, [
                 {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                {cacertfile, "test/fixtures/root.crt"}
             ]),
             ?assertMatch(ssl, type(ListenSocket)),
             close(ListenSocket)
@@ -561,7 +592,8 @@ active_once_test_() ->
                 ?TEST_PORT + 11,
                 ssl_listen_options([
                     {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                    {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                    {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                    {cacertfile, "test/fixtures/root.crt"}
                 ])
             ),
             ?assertEqual({ok, [{active, false}]}, ssl:getopts(ListenSocket, [active])),
@@ -726,7 +758,8 @@ ssl_upgrade_test_() ->
                     ServerSocket,
                     [
                         {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                        {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                        {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                        {cacertfile, "test/fixtures/root.crt"}
                     ]
                 ),
                 Self ! {sock, NewServerSocket}
@@ -737,7 +770,9 @@ ssl_upgrade_test_() ->
             erlang:yield(),
             {ok, ClientSocket} = connect(tcp, "localhost", Port),
             ?assert(is_port(ClientSocket)),
-            {ok, NewClientSocket} = to_ssl_client(ClientSocket),
+            {ok, NewClientSocket} = to_ssl_client(ClientSocket, [
+                {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+            ]),
             ?assertMatch([sslsocket | _], tuple_to_list(NewClientSocket)),
             receive
                 {sock, NewServerSocket} -> ok
@@ -753,7 +788,8 @@ ssl_upgrade_test_() ->
             spawn(fun() ->
                 {ok, ListenSocket} = listen(ssl, Port, [
                     {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                    {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                    {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                    {cacertfile, "test/fixtures/root.crt"}
                 ]),
                 Self ! listening,
                 {ok, ServerSocket} = accept(ListenSocket),
@@ -764,7 +800,9 @@ ssl_upgrade_test_() ->
                 listening -> ok
             end,
             erlang:yield(),
-            {ok, ClientSocket} = connect(ssl, "localhost", Port),
+            {ok, ClientSocket} = connect(ssl, "localhost", Port, [
+                {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+            ]),
             close(ClientSocket)
         end},
         {"SSL client connection can't be upgraded again", fun() ->
@@ -774,7 +812,8 @@ ssl_upgrade_test_() ->
             spawn(fun() ->
                 {ok, ListenSocket} = listen(ssl, Port, [
                     {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                    {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                    {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                    {cacertfile, "test/fixtures/root.crt"}
                 ]),
                 Self ! listening,
                 {ok, ServerSocket} = accept(ListenSocket),
@@ -784,11 +823,18 @@ ssl_upgrade_test_() ->
                 listening -> ok
             end,
             erlang:yield(),
-            {ok, ClientSocket} = connect(ssl, "localhost", Port),
+            {ok, ClientSocket} = connect(ssl, "localhost", Port, [
+                {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+            ]),
             receive
                 {sock, ServerSocket} -> ok
             end,
-            ?assertMatch({error, already_ssl}, to_ssl_client(ClientSocket)),
+            ?assertMatch(
+                {error, already_ssl},
+                to_ssl_client(ClientSocket, [
+                    {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                ])
+            ),
             close(ClientSocket),
             close(ServerSocket)
         end}

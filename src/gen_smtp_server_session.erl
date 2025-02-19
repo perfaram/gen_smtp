@@ -4099,7 +4099,8 @@ smtp_session_tls_test_() ->
                     {sessionoptions, [
                         {tls_options, [
                             {keyfile, "test/fixtures/mx1.example.com-server.key"},
-                            {certfile, "test/fixtures/mx1.example.com-server.crt"}
+                            {certfile, "test/fixtures/mx1.example.com-server.crt"},
+                            {cacertfile, "test/fixtures/root.crt"}
                         ]},
                         {callbackoptions, [{auth, true}]}
                     ]},
@@ -4187,7 +4188,9 @@ smtp_session_tls_test_() ->
                         {tcp, CSock, Packet4} -> ok
                     end,
                     ?assertMatch("220 " ++ _, Packet4),
-                    Result = smtp_socket:to_ssl_client(CSock),
+                    Result = smtp_socket:to_ssl_client(CSock, [
+                        {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                    ]),
                     ?assertMatch({ok, _Socket}, Result),
                     {ok, _Socket} = Result
                 %smtp_socket:active_once(Socket),
@@ -4233,7 +4236,9 @@ smtp_session_tls_test_() ->
                         {tcp, CSock, Packet4} -> ok
                     end,
                     ?assertMatch("220 " ++ _, Packet4),
-                    Result = smtp_socket:to_ssl_client(CSock),
+                    Result = smtp_socket:to_ssl_client(CSock, [
+                        {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                    ]),
                     ?assertMatch({ok, _Socket}, Result),
                     {ok, Socket} = Result,
                     smtp_socket:active_once(Socket),
@@ -4301,7 +4306,9 @@ smtp_session_tls_test_() ->
                         {tcp, CSock, Packet4} -> ok
                     end,
                     ?assertMatch("220 " ++ _, Packet4),
-                    Result = smtp_socket:to_ssl_client(CSock),
+                    Result = smtp_socket:to_ssl_client(CSock, [
+                        {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                    ]),
                     ?assertMatch({ok, _Socket}, Result),
                     {ok, Socket} = Result,
                     smtp_socket:active_once(Socket),
@@ -4410,7 +4417,9 @@ smtp_session_tls_test_() ->
                     receive
                         {tcp, CSock, _} -> ok
                     end,
-                    {ok, Socket} = smtp_socket:to_ssl_client(CSock),
+                    {ok, Socket} = smtp_socket:to_ssl_client(CSock, [
+                        {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                    ]),
                     smtp_socket:active_once(Socket),
                     smtp_socket:send(Socket, "EHLO somehost.com\r\n"),
                     receive
@@ -4517,7 +4526,9 @@ smtp_session_tls_test_() ->
                     receive
                         {tcp, CSock, _} -> ok
                     end,
-                    {ok, Socket} = smtp_socket:to_ssl_client(CSock),
+                    {ok, Socket} = smtp_socket:to_ssl_client(CSock, [
+                        {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                    ]),
                     smtp_socket:active_once(Socket),
                     smtp_socket:send(Socket, "EHLO somehost.com\r\n"),
                     ReadSSLExtensions = fun(F, Acc) ->

@@ -913,13 +913,11 @@ try_STARTTLS(Socket, Options, Extensions) ->
         {Atom, true} when Atom =:= always; Atom =:= if_available ->
             trace(Options, "Starting TLS~n", []),
             case {do_STARTTLS(Socket, Options), Atom} of
-                {false, always} ->
+                % no matter whether we require TLS or not, handle_smtp_throw will retry as appropriate
+                {false, _} ->
                     trace(Options, "TLS failed~n", []),
                     quit(Socket),
                     erlang:throw({temporary_failure, tls_failed});
-                {false, if_available} ->
-                    trace(Options, "TLS failed~n", []),
-                    {Socket, Extensions};
                 {{S, E}, _} ->
                     trace(Options, "TLS started~n", []),
                     {S, E}
@@ -981,7 +979,14 @@ connect(Host, Options) ->
             undefined -> [];
             Other -> Other
         end,
-    SockOpts = [binary, {packet, line}, {keepalive, true}, {active, false} | AddSockOpts],
+    AddSSLAndSockOpts =
+        case proplists:get_value(ssl, Options) of
+            true ->
+                [AddSockOpts | proplists:get_value(tls_options, Options, [])];
+            _ ->
+                AddSockOpts
+        end,
+    SockOpts = [binary, {packet, line}, {keepalive, true}, {active, false} | AddSSLAndSockOpts],
     Proto =
         case proplists:get_value(ssl, Options) of
             true ->
@@ -1479,7 +1484,15 @@ session_start_test_() ->
             end,
             fun({ListenSock}) ->
                 {"a valid complete transaction with TLS advertised should succeed", fun() ->
-                    Options = [{relay, "localhost"}, {port, 9876}, {hostname, <<"testing">>}],
+                    Options = [
+                        {relay, "localhost"},
+                        {port, 9876},
+                        {hostname, <<"testing">>},
+                        {tls_options, [
+                            {cacertfile, "test/fixtures/root.crt"},
+                            {server_name_indication, "mx1.example.com"}
+                        ]}
+                    ],
                     {ok, _Pid} = send({"test@foo.com", ["foo@bar.com"], "hello world"}, Options),
                     {ok, X} = smtp_socket:accept(ListenSock, 1000),
                     smtp_socket:send(X, "220 Some banner\r\n"),
@@ -1492,7 +1505,8 @@ session_start_test_() ->
                         X,
                         [
                             {certfile, "test/fixtures/mx1.example.com-server.crt"},
-                            {keyfile, "test/fixtures/mx1.example.com-server.key"}
+                            {keyfile, "test/fixtures/mx1.example.com-server.key"},
+                            {cacertfile, "test/fixtures/root.crt"}
                         ],
                         5000
                     ),
@@ -1515,7 +1529,15 @@ session_start_test_() ->
             end,
             fun({ListenSock}) ->
                 {"a valid complete transaction with TLS advertised and binary arguments should succeed", fun() ->
-                    Options = [{relay, "localhost"}, {port, 9876}, {hostname, <<"testing">>}],
+                    Options = [
+                        {relay, "localhost"},
+                        {port, 9876},
+                        {hostname, <<"testing">>},
+                        {tls_options, [
+                            {cacertfile, "test/fixtures/root.crt"},
+                            {server_name_indication, "mx1.example.com"}
+                        ]}
+                    ],
                     {ok, _Pid} = send(
                         {<<"test@foo.com">>, [<<"foo@bar.com">>], <<"hello world">>}, Options
                     ),
@@ -1530,7 +1552,8 @@ session_start_test_() ->
                         X,
                         [
                             {certfile, "test/fixtures/mx1.example.com-server.crt"},
-                            {keyfile, "test/fixtures/mx1.example.com-server.key"}
+                            {keyfile, "test/fixtures/mx1.example.com-server.key"},
+                            {cacertfile, "test/fixtures/root.crt"}
                         ],
                         5000
                     ),
@@ -1559,7 +1582,11 @@ session_start_test_() ->
                         {relay, "localhost"},
                         {port, 9876},
                         {hostname, <<"testing">>},
-                        {tls, if_available}
+                        {tls, if_available},
+                        {tls_options, [
+                            {cacertfile, "test/fixtures/root.crt"},
+                            {server_name_indication, "mx1.example.com"}
+                        ]}
                     ],
                     {ok, _Pid} = send(
                         {<<"test@foo.com">>, [<<"foo@bar.com">>], <<"hello world">>}, Options
@@ -2518,13 +2545,17 @@ session_start_test_() ->
                     application:ensure_all_started(gen_smtp),
                     {ok, ListenSock} = smtp_socket:listen(ssl, 9877, [
                         {certfile, "test/fixtures/mx1.example.com-server.crt"},
-                        {keyfile, "test/fixtures/mx1.example.com-server.key"}
+                        {keyfile, "test/fixtures/mx1.example.com-server.key"},
+                        {cacertfile, "test/fixtures/root.crt"}
                     ]),
                     Options = [
                         {relay, <<"localhost">>},
                         {port, 9877},
                         {hostname, <<"testing">>},
-                        {ssl, true}
+                        {ssl, true},
+                        {tls_options, [
+                            {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
+                        ]}
                     ],
                     {ok, _Pid} = send(
                         {<<"test@foo.com">>, [<<"<foo@bar.com>">>, <<"baz@bar.com">>], <<"hello world">>},
