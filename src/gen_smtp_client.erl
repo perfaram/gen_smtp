@@ -38,6 +38,7 @@
     {hostname, smtp_util:guess_FQDN()},
     % how many retries per smtp host on temporary failure
     {retries, 1},
+    {use_ipv6, false},
     {on_transaction_error, quit},
     % smtp, lmtp
     {protocol, smtp},
@@ -238,7 +239,7 @@ open(Options) ->
                     true ->
                         [];
                     _ ->
-                        smtp_util:mxlookup(RelayDomain)
+                        smtp_util:mxlookup(RelayDomain, proplists:get_value(use_ipv6, Options))
                 end,
             trace(Options, "MX records for ~s are ~p~n", [RelayDomain, MXRecords]),
             Hosts =
@@ -284,7 +285,8 @@ close(#smtp_client_socket{socket = Socket}) ->
     binary()
     | smtp_session_error().
 send_it(Email, Options) ->
-    send_it(Email, Options, true).
+    RetryV6 = proplists:get_value(use_ipv6, Options),
+    send_it(Email, Options, RetryV6).
 
 -spec send_it(Email :: email(), Options :: options(), RetryV6 :: boolean()) ->
     binary()
@@ -296,7 +298,7 @@ send_it(Email, Options, RetryV6) ->
             true ->
                 [];
             _ ->
-                smtp_util:mxlookup(RelayDomain)
+                smtp_util:mxlookup(RelayDomain, RetryV6)
         end,
     trace(Options, "MX records for ~s are ~p~n", [RelayDomain, MXRecords]),
     Hosts =

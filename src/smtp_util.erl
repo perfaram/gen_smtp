@@ -25,6 +25,7 @@
 -module(smtp_util).
 -export([
     mxlookup/1,
+    mxlookup/2,
     guess_FQDN/0,
     compute_cram_digest/2,
     get_cram_string/1,
@@ -48,11 +49,18 @@
 
 %% @doc returns a sorted list of mx servers for `Domain', lowest distance first
 mxlookup(Domain) ->
+    mxlookup(Domain, false).
+mxlookup(Domain, UseIPv6) ->
     case inet_res:lookup(Domain, in, mx) of
         [] ->
-            lists:map(fun(X) -> {10, inet_parse:ntoa(X)} end,
-                      inet_res:lookup(Domain, in, a) ++
-                      inet_res:lookup(Domain, in, aaaa));
+            lists:map(
+                fun(X) -> {10, inet_parse:ntoa(X)} end,
+                inet_res:lookup(Domain, in, a) ++
+                    case UseIPv6 of
+                        true -> inet_res:lookup(Domain, in, aaaa);
+                        _ -> []
+                    end
+            );
         Result ->
             lists:sort(Result)
     end.
