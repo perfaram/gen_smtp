@@ -312,7 +312,17 @@ ssl_connect_options([Format | Options]) when Format =:= list; Format =:= binary 
 ssl_connect_options(Options) ->
     ssl_connect_options(Options, list).
 ssl_connect_options(Options, Format) ->
-    parse_address([Format | proplist_merge(Options, ?SSL_CONNECT_OPTIONS)]).
+    parse_address([Format | proplist_merge(add_cacerts_if_absent(Options), ?SSL_CONNECT_OPTIONS)]).
+
+has_existing_cacerts_key({cacertfile, _}) -> true;
+has_existing_cacerts_key({cacerts, _}) -> true;
+has_existing_cacerts_key(_) -> false.
+add_cacerts_if_absent(List) ->
+    {ListTuples, _} = lists:partition(fun(X) -> is_tuple(X) end, List),
+    case lists:any(fun has_existing_cacerts_key/1, ListTuples) of
+        true -> List;
+        false -> [{cacerts, public_key:cacerts_get()} | List]
+    end.
 
 proplist_merge(PrimaryList, DefaultList) ->
     {PrimaryTuples, PrimaryOther} = lists:partition(fun(X) -> is_tuple(X) end, PrimaryList),
@@ -622,7 +632,14 @@ option_test_() ->
         end},
         {"ssl_connect_options has defaults", fun() ->
             ?assertEqual(
-                lists:sort([list | ?SSL_CONNECT_OPTIONS]), lists:sort(ssl_connect_options([]))
+                lists:sort([list | [{cacertfile, ""} | ?SSL_CONNECT_OPTIONS]]),
+                lists:sort(ssl_connect_options([{cacertfile, ""}]))
+            )
+        end},
+        {"ssl_connect_options defaults to injecting host's trusted CAs", fun() ->
+            ?assertEqual(
+                lists:sort([list | [{cacerts, public_key:cacerts_get()} | ?SSL_CONNECT_OPTIONS]]),
+                lists:sort(ssl_connect_options([]))
             )
         end},
         {"tcp_listen_options defaults to list type", fun() ->
@@ -657,12 +674,12 @@ option_test_() ->
         end},
         {"ssl_connect_options defaults to list type", fun() ->
             ?assertEqual(
-                lists:sort([list | ?SSL_CONNECT_OPTIONS]),
-                lists:sort(ssl_connect_options([{active, false}]))
+                lists:sort([list | [{cacertfile, ""} | ?SSL_CONNECT_OPTIONS]]),
+                lists:sort(ssl_connect_options([{active, false}, {cacertfile, ""}]))
             ),
             ?assertEqual(
-                lists:sort([binary | ?SSL_CONNECT_OPTIONS]),
-                lists:sort(ssl_connect_options([binary, {active, false}]))
+                lists:sort([binary | [{cacertfile, ""} | ?SSL_CONNECT_OPTIONS]]),
+                lists:sort(ssl_connect_options([binary, {active, false}, {cacertfile, ""}]))
             )
         end},
         {"tcp_listen_options merges provided proplist", fun() ->
@@ -733,13 +750,27 @@ option_test_() ->
                 lists:sort([
                     list,
                     {active, true},
+                    {cacerts, ["ca.crt"]},
                     {depth, 0},
                     {ip, {0, 0, 0, 0}},
                     {port, 0},
                     {packet, 2},
                     {versions, ['tlsv1.2', 'tlsv1.3']}
                 ]),
-                lists:sort(ssl_connect_options([{active, true}, {packet, 2}]))
+                lists:sort(ssl_connect_options([{active, true}, {packet, 2}, {cacerts, ["ca.crt"]}]))
+            ),
+            ?assertEqual(
+                lists:sort([
+                    list,
+                    {active, true},
+                    {cacertfile, "ca.crt"},
+                    {depth, 0},
+                    {ip, {0, 0, 0, 0}},
+                    {port, 0},
+                    {packet, 2},
+                    {versions, ['tlsv1.2', 'tlsv1.3']}
+                ]),
+                lists:sort(ssl_connect_options([{active, true}, {packet, 2}, {cacertfile, "ca.crt"}]))
             )
         end}
     ].
