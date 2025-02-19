@@ -1403,58 +1403,12 @@ receive_data(_Acc, _Transport, _Socket, _, Size, MaxSize, Session, _Options) whe
     Session ! {receive_data, {error, size_exceeded}};
 receive_data(Acc, Transport, Socket, RecvSize, Size, MaxSize, Session, Options) ->
     case Transport:recv(Socket, RecvSize, 1000) of
-        {ok, Packet} when Acc =:= [] ->
-            case
-                check_bare_crlf(
-                    Packet, <<>>, proplists:get_value(allow_bare_newlines, Options, false), 0
-                )
-            of
-                error ->
-                    Session ! {receive_data, {error, bare_newline}};
-                FixedPacket ->
-                    case binstr:strpos(FixedPacket, <<"\r\n.\r\n">>) of
-                        0 ->
-                            ?LOG_DEBUG(
-                                "received ~B bytes; size is now ~p",
-                                [
-                                    RecvSize, Size + size(Packet)
-                                ],
-                                ?LOGGER_META
-                            ),
-                            ?LOG_DEBUG("memory usage: ~p", [erlang:process_info(self(), memory)], ?LOGGER_META),
-                            receive_data(
-                                [FixedPacket | Acc],
-                                Transport,
-                                Socket,
-                                RecvSize,
-                                Size + byte_size(FixedPacket),
-                                MaxSize,
-                                Session,
-                                Options
-                            );
-                        Index ->
-                            String = binstr:substr(FixedPacket, 1, Index - 1),
-                            Rest = binstr:substr(FixedPacket, Index + 5),
-                            ?LOG_DEBUG(
-                                "memory usage before flattening: ~p",
-                                [
-                                    erlang:process_info(self(), memory)
-                                ],
-                                ?LOGGER_META
-                            ),
-                            Result = list_to_binary(lists:reverse([String | Acc])),
-                            ?LOG_DEBUG(
-                                "memory usage after flattening: ~p",
-                                [
-                                    erlang:process_info(self(), memory)
-                                ],
-                                ?LOGGER_META
-                            ),
-                            Session ! {receive_data, Result, Rest}
-                    end
-            end;
         {ok, Packet} ->
-            [Last | _] = Acc,
+            Last =
+                case Acc of
+                    [] -> <<>>;
+                    [Last_ | _] -> Last_
+                end,
             case
                 check_bare_crlf(
                     Packet, Last, proplists:get_value(allow_bare_newlines, Options, false), 0
