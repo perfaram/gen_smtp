@@ -4270,81 +4270,6 @@ smtp_session_tls_test_() ->
                 end}
             end,
             fun({CSock, _Pid}) ->
-                {"After STARTTLS, re-negotiating STARTTLS is an error", fun() ->
-                    smtp_socket:active_once(CSock),
-                    receive
-                        {tcp, CSock, Packet} -> smtp_socket:active_once(CSock)
-                    end,
-                    ?assertMatch("220 localhost" ++ _Stuff, Packet),
-                    smtp_socket:send(CSock, "EHLO somehost.com\r\n"),
-                    receive
-                        {tcp, CSock, Packet2} -> smtp_socket:active_once(CSock)
-                    end,
-                    ?assertMatch("250-localhost\r\n", Packet2),
-                    Foo = fun(F, Acc) ->
-                        receive
-                            {tcp, CSock, "250-STARTTLS" ++ _} ->
-                                smtp_socket:active_once(CSock),
-                                F(F, true);
-                            {tcp, CSock, "250-" ++ _Packet3} ->
-                                smtp_socket:active_once(CSock),
-                                F(F, Acc);
-                            {tcp, CSock, "250 STARTTLS" ++ _} ->
-                                smtp_socket:active_once(CSock),
-                                true;
-                            {tcp, CSock, "250 " ++ _Packet3} ->
-                                smtp_socket:active_once(CSock),
-                                Acc;
-                            {tcp, CSock, _} ->
-                                smtp_socket:active_once(CSock),
-                                error
-                        end
-                    end,
-                    ?assertEqual(true, Foo(Foo, false)),
-                    smtp_socket:send(CSock, "STARTTLS\r\n"),
-                    receive
-                        {tcp, CSock, Packet4} -> ok
-                    end,
-                    ?assertMatch("220 " ++ _, Packet4),
-                    Result = smtp_socket:to_ssl_client(CSock, [
-                        {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
-                    ]),
-                    ?assertMatch({ok, _Socket}, Result),
-                    {ok, Socket} = Result,
-                    smtp_socket:active_once(Socket),
-                    smtp_socket:send(Socket, "EHLO somehost.com\r\n"),
-                    receive
-                        {ssl, Socket, Packet5} -> smtp_socket:active_once(Socket)
-                    end,
-                    ?assertMatch("250-localhost\r\n", Packet5),
-                    Bar = fun(F, Acc) ->
-                        receive
-                            {ssl, Socket, "250-STARTTLS" ++ _} ->
-                                smtp_socket:active_once(Socket),
-                                F(F, true);
-                            {ssl, Socket, "250-" ++ _} ->
-                                smtp_socket:active_once(Socket),
-                                F(F, Acc);
-                            {ssl, Socket, "250 STARTTLS" ++ _} ->
-                                smtp_socket:active_once(Socket),
-                                true;
-                            {ssl, Socket, "250 " ++ _} ->
-                                smtp_socket:active_once(Socket),
-                                Acc;
-                            {ssl, Socket, _} ->
-                                smtp_socket:active_once(Socket),
-                                error
-                        end
-                    end,
-                    ?assertEqual(false, Bar(Bar, false)),
-                    smtp_socket:send(Socket, "STARTTLS\r\n"),
-                    receive
-                        {ssl, Socket, Packet6} -> smtp_socket:active_once(Socket)
-                    end,
-                    ?assertMatch("500 " ++ _, Packet6)
-                end}
-            end,
-            fun({CSock, _Pid}) ->
                 {"STARTTLS can't take any parameters", fun() ->
                     smtp_socket:active_once(CSock),
                     receive
@@ -4415,18 +4340,21 @@ smtp_session_tls_test_() ->
                     ?assertEqual(true, ReadExtensions(ReadExtensions, false)),
                     smtp_socket:send(CSock, "STARTTLS\r\n"),
                     receive
-                        {tcp, CSock, _} -> ok
+                        {tcp, CSock, Packet4} -> ok
                     end,
-                    {ok, Socket} = smtp_socket:to_ssl_client(CSock, [
+                    ?assertMatch("220 " ++ _, Packet4),
+                    Result = smtp_socket:to_ssl_client(CSock, [
                         {cacertfile, "test/fixtures/root.crt"}, {server_name_indication, "mx1.example.com"}
                     ]),
+                    ?assertMatch({ok, _Socket}, Result),
+                    {ok, Socket} = Result,
                     smtp_socket:active_once(Socket),
                     smtp_socket:send(Socket, "EHLO somehost.com\r\n"),
                     receive
-                        {ssl, Socket, PacketN} -> smtp_socket:active_once(Socket)
+                        {ssl, Socket, Packet5} -> smtp_socket:active_once(Socket)
                     end,
-                    ?assertMatch("250-localhost\r\n", PacketN),
-                    Bar = fun(F, Acc) ->
+                    ?assertMatch("250-localhost\r\n", Packet5),
+                    ReadExtensionsAgain = fun(F, Acc) ->
                         receive
                             {ssl, Socket, "250-STARTTLS" ++ _} ->
                                 smtp_socket:active_once(Socket),
@@ -4445,51 +4373,12 @@ smtp_session_tls_test_() ->
                                 error
                         end
                     end,
-                    ?assertEqual(false, Bar(Bar, false)),
+                    ?assertEqual(false, ReadExtensionsAgain(ReadExtensionsAgain, false)),
                     smtp_socket:send(Socket, "STARTTLS\r\n"),
                     receive
                         {ssl, Socket, Packet6} -> smtp_socket:active_once(Socket)
                     end,
                     ?assertMatch("500 " ++ _, Packet6)
-                end}
-            end,
-            fun({CSock, _Pid}) ->
-                {"STARTTLS can't take any parameters", fun() ->
-                    smtp_socket:active_once(CSock),
-                    receive
-                        {tcp, CSock, Packet} -> smtp_socket:active_once(CSock)
-                    end,
-                    ?assertMatch("220 localhost" ++ _Stuff, Packet),
-                    smtp_socket:send(CSock, "EHLO somehost.com\r\n"),
-                    receive
-                        {tcp, CSock, Packet2} -> smtp_socket:active_once(CSock)
-                    end,
-                    ?assertMatch("250-localhost\r\n", Packet2),
-                    Foo = fun(F, Acc) ->
-                        receive
-                            {tcp, CSock, "250-STARTTLS" ++ _} ->
-                                smtp_socket:active_once(CSock),
-                                F(F, true);
-                            {tcp, CSock, "250-" ++ _Packet3} ->
-                                smtp_socket:active_once(CSock),
-                                F(F, Acc);
-                            {tcp, CSock, "250 STARTTLS" ++ _} ->
-                                smtp_socket:active_once(CSock),
-                                true;
-                            {tcp, CSock, "250 " ++ _Packet3} ->
-                                smtp_socket:active_once(CSock),
-                                Acc;
-                            {tcp, CSock, _} ->
-                                smtp_socket:active_once(CSock),
-                                error
-                        end
-                    end,
-                    ?assertEqual(true, Foo(Foo, false)),
-                    smtp_socket:send(CSock, "STARTTLS foo\r\n"),
-                    receive
-                        {tcp, CSock, Packet4} -> ok
-                    end,
-                    ?assertMatch("501 " ++ _, Packet4)
                 end}
             end,
             fun({CSock, _Pid}) ->
